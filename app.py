@@ -1,7 +1,8 @@
 # from openai import OpenAI
 import openai
 import streamlit as st
-
+import datetime
+import email_validate as ev
 # Set page title and favicon
 st.set_page_config(page_title="SEERAH BOT", page_icon="📜")
 
@@ -10,20 +11,14 @@ st.title("SEERAH BOT")
 
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
 from typing_extensions import override
 from openai import AssistantEventHandler
 def insertTodb(query,response):
     import pymongo
     client = pymongo.MongoClient(st.secrets["MONGO_URI"])
     db = client.books
-    db.seerahbooks.insert_one({"user":user, "query":query,"response":response})
-    
+    db.seerahbooks.insert_one({"user":st.session_state.name,"email":st.session_state.email, "query":query,"response":response,"datetime":datetime.datetime.now(),"date":datetime.datetime.date( datetime.datetime.now()),"time":datetime.datetime.time( datetime.datetime.now())}) 
+
 class EventHandler(AssistantEventHandler):
     @override
     def on_text_created(self, text) -> None:
@@ -68,26 +63,39 @@ class EventHandler(AssistantEventHandler):
         insertTodb(st.session_state.messages[-2]["content"],message_content.value)
         # print(response)
         # print("Citations\n".join(citations))
+def label_email(email):
+    if not ev.is_valid_email(email):
+        return "Invalid"
+    if not ev.has_valid_mx_record(email.split('@')[1]):
+        return "Invalid"
+    if not ev.verify_email(email):
+        return "Unknown"
+    if ev.is_disposable(email.split('@')[1]):
+        return "Risky"
+    return "Valid"
 with st.sidebar:
     with st.form("my_form"):
         st.link_button("Check out Video about over Project", "https://www.youtube.com/watch?v=MgWLN9kC254")
-        user = st.text_input("Your Good name", "")
         if "name"  in st.session_state:
         
             st.write("Assalamoalikum ", st.session_state.name, " Welcome to Seerah Bot, How can I help you today?")
         else:
+            user = st.text_input("Your Good name", "")
             st.write("Assalamoalikum ", user, " Welcome to Seerah Bot, How can I help you today?")
-
+        email = st.text_input("Your Email", "" )
         checkbox_val = st.checkbox("I here by share my query to Seerah Bot, and it can be used for training purposes.")
 
         # Every form must have a submit button.
         submitted = st.form_submit_button("Submit")
         if submitted:
-            st.session_state.name=user
-            if checkbox_val:
-                st.session_state.checked=True
-                st.write("May Allah give barakah in your knowledge and help you in your journey to learn more about Seerah.")
-
+            if label_email(email)=="Valid":
+                st.session_state.name=user
+                st.session_state.email=email
+                if checkbox_val:
+                    st.session_state.checked=True
+                    st.write("May Allah give barakah in your knowledge and help you in your journey to learn more about Seerah.")
+            else:
+                st.write("Please enter a valid email address.")
        
 
 # if "name"  in st.session_state and "checked" in st.session_state :
@@ -129,43 +137,51 @@ with st.sidebar:
 #             # response = st.write_stream(streams)
         
 #             # st.session_state.messages.append({"role": "assistant", "content": response})
+if "name"  in st.session_state and "email" in st.session_state:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-   
-if prompt := st.chat_input("What is up?"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    if prompt := st.chat_input("What is up?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        with st.chat_message("assistant"):
+            
+            thread = client.beta.threads.create(
+            messages=[
+                    {"role": "user", "content": prompt}
+                    # for m in st.session_state.messages
+                ],
+                    # ,
+                # tool_resources={
+                #     "file_search": {
+                #     "vector_store_ids": ["vs_gPspfa4idD83ozY9M28BsHox"]
+                #     }
+                # }
+                # event_handler=EventHandler()
+            )
+            # report=[]
+            # for event in streams:
+            #     if event.data.object=="thread.message.delta":
+            #         for content in event.data.delta.content:
+            #             if content.type=="text":
+            #                 report.append(content.value)
+            #                 st.session_state.messages.append({"role": "assistant", "content": content.value})
+                            # resul=
+            
+            with client.beta.threads.runs.stream(
+                thread_id=thread.id,
+                assistant_id=st.secrets["assistant_id"] ,
+                instructions="Please address the user as Seerah Bot. The user has a premium account.",
+                event_handler=EventHandler(),
+            ) as stream:
+                    stream.until_done()
+            # response = st.write_stream(streams)
         
-    with st.chat_message("assistant"):
-        
-        thread = client.beta.threads.create(
-        messages=[
-                {"role": "user", "content": prompt}
-                # for m in st.session_state.messages
-            ],
-                # ,
-            # tool_resources={
-            #     "file_search": {
-            #     "vector_store_ids": ["vs_gPspfa4idD83ozY9M28BsHox"]
-            #     }
-            # }
-            # event_handler=EventHandler()
-        )
-        # report=[]
-        # for event in streams:
-        #     if event.data.object=="thread.message.delta":
-        #         for content in event.data.delta.content:
-        #             if content.type=="text":
-        #                 report.append(content.value)
-        #                 st.session_state.messages.append({"role": "assistant", "content": content.value})
-                        # resul=
-        with client.beta.threads.runs.stream(
-            thread_id=thread.id,
-            assistant_id=st.secrets["assistant_id"] ,
-            instructions="Please address the user as Seerah Bot. The user has a premium account.",
-            event_handler=EventHandler(),
-        ) as stream:
-                stream.until_done()
-        # response = st.write_stream(streams)
-    
-        # st.session_state.messages.append({"role": "assistant", "content": response})
+            # st.session_state.messages.append({"role": "assistant", "content": response})
+else:
+    st.write("Please enter your name and email in the sidebar to start the conversation.")
