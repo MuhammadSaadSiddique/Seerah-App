@@ -17,7 +17,7 @@ def insertTodb(query,response):
     import pymongo
     client = pymongo.MongoClient(st.secrets["MONGO_URI"])
     db = client.books
-    db.seerahbooks.insert_one({"user":st.session_state.name,"email":st.session_state.email, "query":query,"response":response,"datetime":datetime.datetime.now(),"date":datetime.datetime.date( datetime.datetime.now()),"time":datetime.datetime.time( datetime.datetime.now())}) 
+    db.seerahbooks.insert_one({"user":st.session_state.name,"email":st.session_state.email, "query":query,"response":response,"datetime":str(datetime.datetime.now()),"date":str(datetime.date.today()),"time":str(datetime.datetime.now().time())}) 
 
 class EventHandler(AssistantEventHandler):
     @override
